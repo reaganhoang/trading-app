@@ -265,3 +265,31 @@ def sell():
         price = stock_data["price"]
         quantity = int(request.form.get("quantity"))
         total = price * quantity  
+         # check quantity owned
+        q_owned = db.execute("SELECT shares FROM port WHERE user_id = :id AND symbol = :stock", id=u_id, stock=stock)
+        q_owned = q_owned[0]["shares"]
+        print(q_owned)
+
+        if q_owned < quantity:
+            return apology("insufficient quantity owned")
+
+        dt = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        #log transaction
+        db.execute("INSERT INTO trans (user_id, symbol, shares, price, total, buy_sell, datetime) VALUES (:id, :sym, :sh, :pr, :tot, 'SELL', :dt)", id=u_id, sym=stock, sh=quantity, pr=price, tot=total, dt=dt)
+
+        #update port, if q=0, remove entry
+        db.execute("UPDATE port SET shares = shares - :sh, last_price = :pr, total = total - :tot WHERE user_id = :id AND symbol = :stock", id=u_id, stock=stock, sh=quantity, pr=price, tot=total)
+
+        # check quantity owned
+        q_owned = db.execute("SELECT shares FROM port WHERE user_id = :id AND symbol = :stock", stock=stock, id=u_id)
+        q_owned = q_owned[0]["shares"]
+
+        if q_owned == 0:
+            db.execute("DELETE FROM port WHERE user_id=:id AND symbol=:stock", stock=stock, id=u_id)
+
+        #exe new cash balance
+        db.execute("UPDATE users SET cash = cash + :newcash WHERE id = :id", newcash=total, id=u_id)
+
+        # redirect user to buy page
+        return redirect(url_for("index"))
