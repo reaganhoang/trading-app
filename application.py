@@ -41,4 +41,45 @@ def index():
     port_data = db.execute("SELECT * FROM port WHERE user_id = :id", id=u_id)
 
     #sum transactions and cash
-    
+    cash_total = round(sum_data[0]["cash"], 2)
+    port_total = 0
+    for i in port_data:
+        stock_data = lookup(i["symbol"])
+        i["currprice"] = round(stock_data["price"], 2)
+        i["gainloss"] = round((((stock_data["price"] * i["shares"]) - i["total"]) / i["total"]) * 100, 2)
+        port_total += i["currprice"] * i["shares"]
+    total = round(cash_total + port_total, 2)
+    total_gain = round((((cash_total + port_total) - 10000) / 10000) * 100, 2)
+
+    return render_template("home.html", total=total, cash_total = cash_total, total_gain = total_gain, stocks=port_data)
+
+@app.route("/buy", methods=["GET", "POST"])
+@login_required
+def buy():
+    if request.method == "POST":
+
+        u_id = (session.get("user_id"))
+
+        #validate inputs
+        if not request.form.get("ticker"):
+            return apology("please enter a ticker")
+        elif not request.form.get("quantity"):
+            return apology("please enter a quantity")
+        elif int(request.form.get("quantity")) < 1:
+            return apology("please enter a quantity greater than 0")
+
+        # query database for stock
+        stock = request.form.get("ticker")
+        stock_data = lookup(stock)
+        if not stock_data:
+            return apology("Invalid stock name")
+
+        #pre-format fields
+        stock = stock.upper()
+        price = stock_data["price"]
+        quantity = int(request.form.get("quantity"))
+        total = price * quantity
+
+        # check user funds
+        funds = db.execute("SELECT cash FROM users WHERE id = :id", id=u_id)
+        funds = funds[0]["cash"]
