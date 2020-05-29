@@ -83,3 +83,35 @@ def buy():
         # check user funds
         funds = db.execute("SELECT cash FROM users WHERE id = :id", id=u_id)
         funds = funds[0]["cash"]
+ if total > funds:
+            return apology("insufficient funds")
+
+        dt = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        #log transaction
+        db.execute("INSERT INTO trans (user_id, symbol, shares, price, total, buy_sell, datetime) VALUES (:id, :sym, :sh, :pr, :tot, 'BUY', :dt)", id=u_id, sym=stock, sh=quantity, pr=price, tot=total, dt=dt)
+
+        #update portfolio
+        if db.execute("SELECT symbol FROM port WHERE user_id = :id AND symbol = :stock", id=u_id, stock=stock):
+            db.execute("UPDATE port SET shares = shares + :sh, last_price = :pr, total = total + :tot WHERE user_id = :id AND symbol = :stock", id=u_id, stock=stock, sh=quantity, pr=price, tot=total)
+        else:
+            db.execute("INSERT INTO port (user_id, symbol, shares, last_price, total) VALUES (:id, :sym, :sh, :pr, :tot)", id=u_id, sym=stock, sh=quantity, pr=price, tot=total)
+
+        #exe new cash balance
+        db.execute("UPDATE users SET cash = :newcash WHERE id = :id", newcash=funds-total, id=u_id)
+
+        # redirect user to index page
+        return redirect(url_for("index"))
+
+    # else if user reached route via GET (as by clicking a link or via redirect)
+    else:
+        return render_template("buy.html")
+
+@app.route("/history")
+@login_required
+def history():
+    u_id = (session.get("user_id"))
+
+    sum_data = db.execute("SELECT * FROM users WHERE id = :id", id=u_id)
+    trans_data = db.execute("SELECT * FROM trans WHERE user_id = :id", id=u_id)
+    port_data = db.execute("SELECT * FROM port WHERE user_id = :id", id=u_id)       
